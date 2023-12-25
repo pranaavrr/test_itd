@@ -6,6 +6,9 @@ const cors = require('cors');
 const formidable = require('formidable');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
+const customerRouter = require('./routes/customer');
+const sellerRouter = require('./routes/seller');
+const adminRouter = require('./routes/admin');
 
 const app = express();
 const port = 3000;
@@ -244,6 +247,27 @@ app.post('/reset-password', async (req, res) => {
     res.status(500).send('Internal Server Error');
   }
 });
+
+app.use('/customer', customerRouter);
+app.use('/seller', sellerRouter);
+app.use('/admin', adminRouter);
+
+//cart schema
+
+const cartItemSchema = new mongoose.Schema({
+  productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
+  quantity: { type: Number, default: 1 },
+});
+
+const cartSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  items: [cartItemSchema],
+});
+
+const Cart = mongoose.model('Cart', cartSchema);
+
+module.exports = Cart;
+
 
 app.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
