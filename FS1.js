@@ -6,8 +6,9 @@ const cors = require('cors');
 const formidable = require('formidable');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
-const customerRouter = require('./routes/customer');
-const sellerRouter = require('./routes/seller');
+const Seller = require('./routes/seller'); 
+const Customer = require('./routes/customer');
+
 const adminRouter = require('./routes/admin');
 
 const app = express();
@@ -248,9 +249,79 @@ app.post('/reset-password', async (req, res) => {
   }
 });
 
-app.use('/customer', customerRouter);
-app.use('/seller', sellerRouter);
+app.use('/customer', Customer);
+app.use('/seller', Seller);
 app.use('/admin', adminRouter);
+
+
+// Function to initialize the seller's database with 100 products
+const initializeSellerDatabase = async () => {
+  const seller = new Seller({
+    name: 'Sample Seller',
+    products: [],
+  });
+
+  // Add 100 products to the seller's database
+  for (let i = 1; i <= 100; i++) {
+    seller.products.push({
+      name: `Product ${i}`,
+      quantity: 100, // Initial quantity for each product
+      price: Math.floor(Math.random() * 100) + 1, // Random price between 1 and 100
+    });
+  }
+
+  
+  await seller.save();
+  
+};
+
+// Function to simulate a customer purchasing a product
+const purchaseProduct = async (customerId, productId, quantity) => {
+  try {
+    // Find the customer and the seller
+    const customer = await Customer.findById(customerId);
+    const seller = await Seller.findOne({ 'products._id': productId });
+
+    if (!customer || !seller) {
+      console.log('Customer or seller not found.');
+      return;
+    }
+
+    
+    const productInSeller = seller.products.find((product) => product._id.equals(productId));
+
+    if (!productInSeller || productInSeller.quantity < quantity) {
+      console.log('Product not available in sufficient quantity.');
+      return;
+    }
+
+    
+    productInSeller.quantity -= quantity;
+
+    
+    customer.purchasedProducts.push({
+      productId: productId,
+      quantity: quantity,
+      price: productInSeller.price,
+    });
+
+    
+    await Promise.all([customer.save(), seller.save()]);
+
+    console.log(`Customer ${customerId} purchased ${quantity} units of Product ${productId}.`);
+  } catch (error) {
+    console.error('Error:', error.message);
+  }
+};
+
+initializeSellerDatabase();
+
+
+const customerId = 'yourCustomerId'; // Replace with actual customer ID
+const productId = 'yourProductId'; // Replace with actual product ID
+const purchaseQuantity = 5;
+
+purchaseProduct(customerId, productId, purchaseQuantity);
 
 //cart schema
 
@@ -267,6 +338,36 @@ const cartSchema = new mongoose.Schema({
 const Cart = mongoose.model('Cart', cartSchema);
 
 module.exports = Cart;
+
+const categorySchema = new mongoose.Schema({
+  name: { type: String, required: true, unique: true },
+  description: { type: String },
+  subcategories: [{ type: String }],
+});
+
+const Category = mongoose.model('Category', categorySchema);
+
+app.get('/', (req, res) => {
+  res.render('order');
+});
+
+// Handle order placement
+app.post('/place', async (req, res) => {
+  try {
+    const { address, orderDetails } = req.body;
+
+    // Create a new order
+    const newOrder = new Order({ address, orderDetails });
+
+    // Save the order to the database
+    await newOrder.save();
+
+    res.send('Order placed successfully!');
+  } catch (error) {
+    console.error('Error placing order:', error.message);
+    res.status(500).send('Internal Server Error');
+  }
+});
 
 
 app.listen(port, () => {
